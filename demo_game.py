@@ -1,12 +1,14 @@
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
+from direct.interval.LerpInterval import LerpTexOffsetInterval
 from direct.gui.OnscreenText import OnscreenText
-from pandac.PandaModules import CompassEffect, TextNode, VBase3
-from panda3d.core import AmbientLight, DirectionalLight, Vec4, Vec3, Point3, Plane, Fog
-from panda3d.core import GeoMipTerrain
-from panda3d.core import CollisionHandlerQueue
-from panda3d.core import CollisionTraverser, CollisionNode, BitMask32
-from panda3d.core import CollisionNode, CollisionSphere, CollisionRay
+from pandac.PandaModules import CompassEffect, CollisionTraverser, CollisionNode
+from pandac.PandaModules import CollisionSphere, CollisionHandlerQueue, Material
+from pandac.PandaModules import VBase4, VBase3, TransparencyAttrib
+from panda3d.core import AmbientLight, DirectionalLight, Vec4, Vec3, Fog
+from panda3d.core import BitMask32, Texture, TextNode, TextureStage
+from panda3d.core import NodePath, PandaNode
+# from panda3d.core import GeoMipTerrain
 import sys
 
 
@@ -18,15 +20,15 @@ class DemoGame(ShowBase):
         self.status_label = self.makeStatusLabel(0)
         self.collision_label = self.makeCollisionLabel(1)
 
-        terrain = GeoMipTerrain("worldTerrain")
-        terrain.setHeightfield("models/height_map.png")
-        terrain.setColorMap("models/colour_map_flipped.png")
-        terrain.setBruteforce(True)
-        root = terrain.getRoot()
-        root.reparentTo(render)
-        root.setSz(60)
-        terrain.generate()
-        root.writeBamFile("models/world.bam")
+        # terrain = GeoMipTerrain("worldTerrain")
+        # terrain.setHeightfield("models/height_map.png")
+        # terrain.setColorMap("models/colour_map_flipped.png")
+        # terrain.setBruteforce(True)
+        # root = terrain.getRoot()
+        # root.reparentTo(render)
+        # root.setSz(60)
+        # terrain.generate()
+        # root.writeBamFile("models/world.bam")
 
         self.world = self.loader.loadModel("models/world.bam")
         self.world.reparentTo(self.render)
@@ -40,6 +42,20 @@ class DemoGame(ShowBase):
         self.player.reparentTo(self.render)
         self.resetPlayer()
 
+        self.taskMgr.add(self.updateTask, "update")
+        self.keyboardSetup()
+
+        self.max_distance = 400
+        if not self.debug:
+            self.camLens.setFar(self.max_distance)
+        else:
+            base.oobe()
+
+        self.camLens.setFov(60)
+        self.createEnvironment()
+        self.setupCollisions()
+        self.text_counter = 0
+
         # load the explosion ring
         self.explosion_model = loader.loadModel("models/explosion")    # Panda3D Defaults to '.egg'
         self.explosion_model.reparentTo(self.render)
@@ -47,17 +63,6 @@ class DemoGame(ShowBase):
         self.explosion_model.setLightOff()
         # Only one explosion at a time
         self.exploding = False
-
-        self.taskMgr.add(self.updateTask, "update")
-        self.keyboardSetup()
-
-        self.max_distance = 400
-        self.camLens.setFar(self.max_distance)
-        self.camLens.setFov(60)
-
-        self.createEnvironment()
-        self.setupCollisions()
-        self.text_counter = 0
 
     def makeStatusLabel(self, i):
         return OnscreenText(style=2, fg=(0.5, 1, 0.5, 1), pos=(-1.3, 0.92, (-0.08 * i)),
@@ -244,34 +249,59 @@ class DemoGame(ShowBase):
 
     def createEnvironment(self):
         # Fog to hide a performance tweak
-        colour = (0.0, 0.0, 0.0)
         exp_fog = Fog("scene-wide-fog")
-        exp_fog.setColor(*colour)
-        exp_fog.setExpDensity(0.004)
+        exp_fog.setColor(1, 0.8, 0.8)
+        exp_fog.setExpDensity(0.002)
         render.setFog(exp_fog)
-        base.setBackgroundColor(*colour)
+        # base.setBackgroundColor(*colour)
 
-        # Sky
-        sky_dome = loader.loadModel("models/sky")      # sky.egg by default
+        # Sky Dome
+        '''
+        sky_dome = loader.loadModel("models/sky")      # sky_sphere.egg by default
         sky_dome.setEffect(CompassEffect.make(self.render))
         sky_dome.setScale(self.max_distance / 2)
         sky_dome.setZ(-65)  # sink it
         # NOT render - you'll fly through the sky!
         sky_dome.reparentTo(self.camera)
+        '''
+
+        # Sky Sphere
+        sky_sphere = self.loader.loadModel("models/sky_sphere")
+        sky_sphere.setEffect(CompassEffect.make(self.render))
+        sky_sphere.setScale(0.08)
+        sky_sphere.reparentTo(self.camera)
 
         # Lighting
         ambient_light = AmbientLight("ambientLight")
         ambient_colour = Vec4(0.6, 0.6, 0.6, 1)
         ambient_light.setColor(ambient_colour)
+        self.render.setLight(self.render.attachNewNode(ambient_light))
+
         directional_light = DirectionalLight("directionalLight")
-        direction = Vec3(0, -10, -10)
-        directional_light.setDirection(direction)
-        directional_colour = Vec4(1, 1, 1, 1)
+        # direction = Vec3(0, -10, -10)
+        # directional_light.setDirection(direction)
+        directional_colour = Vec4(0.8, 0.8, 0.5, 1)
         directional_light.setColor(directional_colour)
-        directional_specular = Vec4(1, 1, 1, 1)
-        directional_light.setSpecularColor(directional_specular)
-        render.setLight(render.attachNewNode(ambient_light))
-        render.setLight(render.attachNewNode(directional_light))
+
+        # directional_specular = Vec4(1, 1, 1, 1)
+        # directional_light.setSpecularColor(directional_specular)
+
+        dir_light_np = self.render.attachNewNode(directional_light)
+        dir_light_np.setPos(0, 0, 260)
+        dir_light_np.lookAt(self.player)
+        self.render.setLight(dir_light_np)
+
+        # Water
+        self.water = self.loader.loadModel("models/square")
+        self.water.setSx(self.world_size*2)
+        self.water.setSy(self.world_size*2)
+        self.water.setPos(self.world_size/2, self.world_size/2, 25)   # z is sea level
+        self.water.setTransparency(TransparencyAttrib.MAlpha)
+        newTS = TextureStage("1")
+        self.water.setTexture(newTS, self.loader.loadTexture("models/water.png"))
+        self.water.setTexScale(newTS, 4)
+        self.water.reparentTo(self.render)
+        LerpTexOffsetInterval(self.water, 200, (1,0), (0,0), textureStage=newTS).loop()
 
     def setupCollisions(self):
         self.coll_trav = CollisionTraverser()
@@ -284,6 +314,7 @@ class DemoGame(ShowBase):
         self.player_ground_col.setFromCollideMask(BitMask32.bit(0))
         self.player_ground_col.setIntoCollideMask(BitMask32.allOff())
         self.world.setCollideMask(BitMask32.bit(0))
+        self.water.setCollideMask(BitMask32.bit(0))
 
         # and done
         self.player_ground_col_np = self.player.attachNewNode(self.player_ground_col)
