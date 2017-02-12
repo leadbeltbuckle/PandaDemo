@@ -1,7 +1,7 @@
 <CoordinateSystem> { Z-Up }
 
 <Texture> clouds {
-  clouds.png
+  sky_texture.png
   <Scalar> minfilter { linear_mipmap_linear }
   <Scalar> magfilter { linear_mipmap_linear }
 }
