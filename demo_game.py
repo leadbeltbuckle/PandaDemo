@@ -1,7 +1,7 @@
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from direct.gui.OnscreenText import OnscreenText
-from pandac.PandaModules import CompassEffect, TextNode
+from pandac.PandaModules import CompassEffect, TextNode, VBase3
 from panda3d.core import AmbientLight, DirectionalLight, Vec4, Vec3, Point3, Plane, Fog
 from panda3d.core import GeoMipTerrain
 from panda3d.core import CollisionHandlerQueue
@@ -19,29 +19,37 @@ class DemoGame(ShowBase):
         self.collision_label = self.makeCollisionLabel(1)
 
         terrain = GeoMipTerrain("worldTerrain")
-        terrain.setHeightfield("height_map.png")
-        terrain.setColorMap("colour_map_flipped.png")
+        terrain.setHeightfield("models/height_map.png")
+        terrain.setColorMap("models/colour_map_flipped.png")
         terrain.setBruteforce(True)
         root = terrain.getRoot()
         root.reparentTo(render)
         root.setSz(60)
         terrain.generate()
-        root.writeBamFile("world.bam")
+        root.writeBamFile("models/world.bam")
 
-        self.world = self.loader.loadModel("world.bam")
+        self.world = self.loader.loadModel("models/world.bam")
         self.world.reparentTo(self.render)
         self.world_size = 1024
 
-        self.player = self.loader.loadModel("alliedflanker.egg")
-        self.player.setPos(self.world, 200, 200, 65)
-        self.player.setH(self.world, 255)
+        self.player = self.loader.loadModel("models/alliedflanker")    # alliedflanker.egg by default
+        self.max_speed = 100.0
+        self.start_pos = Vec3(200, 200, 65)
+        self.start_hpr = Vec3(225, 0, 0)
+        self.player.setScale(0.2, 0.2, 0.2)
         self.player.reparentTo(self.render)
+        self.resetPlayer()
+
+        # load the explosion ring
+        self.explosion_model = loader.loadModel("models/explosion")    # Panda3D Defaults to '.egg'
+        self.explosion_model.reparentTo(self.render)
+        self.explosion_model.setScale(0.0)
+        self.explosion_model.setLightOff()
+        # Only one explosion at a time
+        self.exploding = False
 
         self.taskMgr.add(self.updateTask, "update")
         self.keyboardSetup()
-        self.speed = 0.0
-        self.max_speed = 100.0
-        self.player.setScale(0.2, 0.2, 0.2)
 
         self.max_distance = 400
         self.camLens.setFar(self.max_distance)
@@ -58,6 +66,12 @@ class DemoGame(ShowBase):
     def makeCollisionLabel(self, i):
         return OnscreenText(style=2, fg=(0.5, 1, 0.5, 1), pos=(-1.3, 0.92, (-0.08 * i)),
                             align=TextNode.ALeft, scale=0.08, mayChange=1)
+
+    def resetPlayer(self):
+        self.player.show()
+        self.player.setPos(self.world, self.start_pos)
+        self.player.setHpr(self.world, self.start_hpr)
+        self.speed = self.max_speed / 2
 
     def keyboardSetup(self):
         self.keyMap = {"left": 0, "right": 0, "climb": 0, "fall": 0,
@@ -91,7 +105,30 @@ class DemoGame(ShowBase):
             entry = self.player_ground_handler.getEntry(i)
             if self.debug:
                 self.collision_label.setText("dead:"+str(globalClock.getFrameTime()))
+            if not self.exploding:
+                self.player.setZ(entry.getSurfacePoint(self.render).getZ() + 10)
+                self.explosionSequence()
         return Task.cont
+
+    def explosionSequence(self):
+        self.exploding = True
+        pos = Vec3(self.player.getX(), self.player.getY(), self.player.getZ())
+        hpr = Vec3(self.player.getH(), 0, 0)
+        self.explosion_model.setPosHpr(pos, hpr)
+        self.player.hide()
+        taskMgr.add(self.expandExplosion, "expandExplosion")
+
+    def expandExplosion(self, Task):
+        if self.explosion_model.getScale() < VBase3(60.0, 60.0, 60.0):
+            factor = globalClock.getDt()
+            scale = self.explosion_model.getScale()
+            scale += VBase3(factor*40, factor*40, factor*40)
+            self.explosion_model.setScale(scale)
+            return Task.cont
+        else:
+            self.explosion_model.setScale(0)
+            self.exploding = False
+            self.resetPlayer()
 
     def updatePlayer(self):
         # Global Clock
@@ -100,6 +137,7 @@ class DemoGame(ShowBase):
         climb_factor = scale_factor * 0.5
         bank_factor = scale_factor
         speed_factor = scale_factor * 2.9
+        gravity_factor = 2 * (self.max_speed - self.speed) / 100
 
         # Climb and Fall
         if self.keyMap["climb"] != 0 and self.speed > 0.00:
@@ -158,8 +196,12 @@ class DemoGame(ShowBase):
                 self.speed = 0.0
 
         # move forwards - our X/Y is inverted
-        self.player.setX(self.player, -speed_factor)
+        if not self.exploding:
+            self.player.setX(self.player, -speed_factor)
+            self.applyBoundaries()
+            self.player.setZ(self.player, -gravity_factor)
 
+    def applyBoundaries(self):
         # respet max camera distance else you
         # cannot see the floor post loop the loop
         if self.player.getZ() > self.max_distance:
@@ -168,16 +210,33 @@ class DemoGame(ShowBase):
         elif self.player.getZ() < 0:
             self.player.setZ(0)
 
+        boundary = False
+
         # and now the X/Y world boundaries:
         if self.player.getX() < 0:
             self.player.setX(0)
+            boundary = True
         elif self.player.getX() > self.world_size:
             self.player.setX(self.world_size)
+            boundary = True
 
         if self.player.getY() < 0:
             self.player.setY(0)
+            boundary = True
         elif self.player.getY() > self.world_size:
             self.player.setY(self.world_size)
+            boundary = True
+
+        # Avoid doing this every frame
+        if boundary and self.text_counter > 30:
+            self.status_label.setText("STATUS: MAP END; TURN AROUND")
+        elif self.text_counter > 30:
+            self.status_label.setText("STATUS: OK")
+
+        if self.text_counter > 30:
+            self.text_counter = 0
+        else:
+            self.text_counter += 1
 
     def updateCamera(self):
         self.camera.setPos(self.player, 25.6225, 3.8807, 10.2779)
@@ -193,7 +252,7 @@ class DemoGame(ShowBase):
         base.setBackgroundColor(*colour)
 
         # Sky
-        sky_dome = loader.loadModel("sky.egg")
+        sky_dome = loader.loadModel("models/sky")      # sky.egg by default
         sky_dome.setEffect(CompassEffect.make(self.render))
         sky_dome.setScale(self.max_distance / 2)
         sky_dome.setZ(-65)  # sink it
