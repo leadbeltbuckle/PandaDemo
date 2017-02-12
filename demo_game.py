@@ -5,8 +5,8 @@ class DemoGame(ShowBase):
     def __init__(self):
         ShowBase.__init__(self)
         terrain = GeoMipTerrain("worldTerrain")
-        terrain.setHeightfield(heightmap.jpg")
-        terrain.setColorMap("colourmap.jpg")
+        terrain.setHeightfield("height_map.png")
+        terrain.setColorMap("colour_map_flipped.png")
         terrain.setBruteforce(True)
         root = terrain.getRoot()
         root.reparentTo(render)
