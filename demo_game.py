@@ -41,24 +41,24 @@ class DemoGame(ShowBase):
         self.createEnvironment()
 
     def keyboardSetup(self):
-            self.keyMap = {"left": 0, "right": 0, "climb": 0, "fall": 0,
-                           "accelerate": 0, "decelerate": 0, "fire": 0}
-            self.accept("escape", sys.exit)
-            self.accept("a", self.setKey, ["accelerate", 1])
-            self.accept("a-up", self.setKey, ["accelerate", 0])
-            self.accept("z", self.setKey, ["decelerate", 1])
-            self.accept("z-up", self.setKey, ["decelerate", 0])
-            self.accept("arrow_left", self.setKey, ["left", 1])
-            self.accept("arrow_left-up", self.setKey, ["left", 0])
-            self.accept("arrow_right", self.setKey, ["right", 1])
-            self.accept("arrow_right-up", self.setKey, ["right", 0])
-            self.accept("arrow_down", self.setKey, ["climb", 1])
-            self.accept("arrow_down-up", self.setKey, ["climb", 0])
-            self.accept("arrow_up", self.setKey, ["fall", 1])
-            self.accept("arrow_up-up", self.setKey, ["fall", 0])
-            self.accept("space", self.setKey, ["fire", 1])
-            self.accept("space-up", self.setKey, ["fire", 0])
-            base.disableMouse() # or updateCamera will fail!
+        self.keyMap = {"left": 0, "right": 0, "climb": 0, "fall": 0,
+                       "accelerate": 0, "decelerate": 0, "fire": 0}
+        self.accept("escape", sys.exit)
+        self.accept("a", self.setKey, ["accelerate", 1])
+        self.accept("a-up", self.setKey, ["accelerate", 0])
+        self.accept("z", self.setKey, ["decelerate", 1])
+        self.accept("z-up", self.setKey, ["decelerate", 0])
+        self.accept("arrow_left", self.setKey, ["left", 1])
+        self.accept("arrow_left-up", self.setKey, ["left", 0])
+        self.accept("arrow_right", self.setKey, ["right", 1])
+        self.accept("arrow_right-up", self.setKey, ["right", 0])
+        self.accept("arrow_down", self.setKey, ["climb", 1])
+        self.accept("arrow_down-up", self.setKey, ["climb", 0])
+        self.accept("arrow_up", self.setKey, ["fall", 1])
+        self.accept("arrow_up-up", self.setKey, ["fall", 0])
+        self.accept("space", self.setKey, ["fire", 1])
+        self.accept("space-up", self.setKey, ["fire", 0])
+        base.disableMouse() # or updateCamera will fail!
 
     def setKey(self, key, value):
         self.keyMap[key] = value
