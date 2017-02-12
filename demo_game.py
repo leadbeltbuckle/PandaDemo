@@ -8,25 +8,20 @@ import sys
 
 class DemoGame(ShowBase):
     def __init__(self):
-        try:
-            self.world = self.loader.loadModel("world.bam")
-            self.world.reparentTo(self.render)
-            self.world_size = 1024
-        except:
-            ShowBase.__init__(self)
-            terrain = GeoMipTerrain("worldTerrain")
-            terrain.setHeightfield("height_map.png")
-            terrain.setColorMap("colour_map_flipped.png")
-            terrain.setBruteforce(True)
-            root = terrain.getRoot()
-            root.reparentTo(render)
-            root.setSz(60)
-            terrain.generate()
-            root.writeBamFile("world.bam")
+        ShowBase.__init__(self)
+        terrain = GeoMipTerrain("worldTerrain")
+        terrain.setHeightfield("height_map.png")
+        terrain.setColorMap("colour_map_flipped.png")
+        terrain.setBruteforce(True)
+        root = terrain.getRoot()
+        root.reparentTo(render)
+        root.setSz(60)
+        terrain.generate()
+        root.writeBamFile("world.bam")
 
-            self.world = self.loader.loadModel("world.bam")
-            self.world.reparentTo(self.render)
-            self.world_size = 1024
+        self.world = self.loader.loadModel("world.bam")
+        self.world.reparentTo(self.render)
+        self.world_size = 1024
 
         self.player = self.loader.loadModel("alliedflanker.egg")
         self.player.setPos(self.world, 200, 200, 65)
