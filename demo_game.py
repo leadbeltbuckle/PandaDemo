@@ -1,14 +1,23 @@
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
-from pandac.PandaModules import CompassEffect
-from panda3d.core import AmbientLight, DirectionalLight, Vec4, Vec3, Fog
+from direct.gui.OnscreenText import OnscreenText
+from pandac.PandaModules import CompassEffect, TextNode
+from panda3d.core import AmbientLight, DirectionalLight, Vec4, Vec3, Point3, Plane, Fog
 from panda3d.core import GeoMipTerrain
+from panda3d.core import CollisionHandlerQueue
+from panda3d.core import CollisionTraverser, CollisionNode, BitMask32
+from panda3d.core import CollisionNode, CollisionSphere, CollisionRay
 import sys
 
 
 class DemoGame(ShowBase):
     def __init__(self):
         ShowBase.__init__(self)
+
+        self.debug = False
+        self.status_label = self.makeStatusLabel(0)
+        self.collision_label = self.makeCollisionLabel(1)
+
         terrain = GeoMipTerrain("worldTerrain")
         terrain.setHeightfield("height_map.png")
         terrain.setColorMap("colour_map_flipped.png")
@@ -39,6 +48,16 @@ class DemoGame(ShowBase):
         self.camLens.setFov(60)
 
         self.createEnvironment()
+        self.setupCollisions()
+        self.text_counter = 0
+
+    def makeStatusLabel(self, i):
+        return OnscreenText(style=2, fg=(0.5, 1, 0.5, 1), pos=(-1.3, 0.92, (-0.08 * i)),
+                            align=TextNode.ALeft, scale=0.08, mayChange=1)
+
+    def makeCollisionLabel(self, i):
+        return OnscreenText(style=2, fg=(0.5, 1, 0.5, 1), pos=(-1.3, 0.92, (-0.08 * i)),
+                            align=TextNode.ALeft, scale=0.08, mayChange=1)
 
     def keyboardSetup(self):
         self.keyMap = {"left": 0, "right": 0, "climb": 0, "fall": 0,
@@ -66,6 +85,12 @@ class DemoGame(ShowBase):
     def updateTask(self, task):
         self.updatePlayer()
         self.updateCamera()
+
+        self.coll_trav.traverse(self.render)
+        for i in range(self.player_ground_handler.getNumEntries()):
+            entry = self.player_ground_handler.getEntry(i)
+            if self.debug:
+                self.collision_label.setText("dead:"+str(globalClock.getFrameTime()))
         return Task.cont
 
     def updatePlayer(self):
@@ -189,6 +214,27 @@ class DemoGame(ShowBase):
         render.setLight(render.attachNewNode(ambient_light))
         render.setLight(render.attachNewNode(directional_light))
 
+    def setupCollisions(self):
+        self.coll_trav = CollisionTraverser()
+
+        self.player_ground_sphere = CollisionSphere(0, 1.5, -1.5, 1.5)
+        self.player_ground_col = CollisionNode('playerSphere')
+        self.player_ground_col.addSolid(self.player_ground_sphere)
+
+        # bitmasks
+        self.player_ground_col.setFromCollideMask(BitMask32.bit(0))
+        self.player_ground_col.setIntoCollideMask(BitMask32.allOff())
+        self.world.setCollideMask(BitMask32.bit(0))
+
+        # and done
+        self.player_ground_col_np = self.player.attachNewNode(self.player_ground_col)
+        self.player_ground_handler = CollisionHandlerQueue()
+        self.coll_trav.addCollider(self.player_ground_col_np, self.player_ground_handler)
+
+        # DEBUG
+        if self.debug:
+            self.player_ground_col_np.show()
+            self.coll_trav.showCollisions(self.render)
 
 
 game = DemoGame()
